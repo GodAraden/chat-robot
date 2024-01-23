@@ -1,0 +1,15 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.github-markdown-body {
+  padding: 0;
+}
+
+.github-markdown-body p {
+  word-break: break-all;
+}
+
+.arco-list-item-meta {
+  align-items: initial !important;
+}

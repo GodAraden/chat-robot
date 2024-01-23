@@ -1,0 +1,56 @@
+name: build and deploy # workflow 名称
+on:
+  push: # push 事件触发
+    branches: [master] # 只在 master 分支有新的 push 情况下触发
+
+env:
+  PACKED_PATH: # 打包出的文件夹位置，正常为空，vuepress 中为 docs/.vuepress/
+  TARGET_DIR: /www/wwwroot/ # 打包好的项目目录上传位置
+  PROJECT_DIR: chat.araden.top # 打包好的项目目录要改成的名字
+  NODE_VERSION: 18
+  PNPM_VERSION: 8
+  REMOTE_USER: root
+  REMOTE_HOST: 47.94.101.247
+
+jobs:
+  build-and-deploy: # job 名称
+    runs-on: ubuntu-latest # 执行 workflow 所需的操作系统环境
+    steps:
+      - name: checkout
+        uses: actions/checkout@v3 # 使用切换分支的 action 操作
+
+      - name: pnpm setup
+        uses: pnpm/action-setup@v2 # 初始化 pnpm
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Use Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: build prepare # 将 KEY 写入 .env.local 文件
+        run: |
+          echo ${{ secrets.SECRET_KEY }} > .env.local
+
+      - name: build
+        run: pnpm install && pnpm build
+
+      - name: deploy prepare # Github Action 虚拟机上的操作，改名，挪到项目根目录下
+        run: mv ${{ env.PACKED_PATH }}dist ${{ env.PROJECT_DIR }}
+
+      - name: deploy
+        uses: easingthemes/ssh-deploy@main # 使用 ssh 上传文件的 action 操作
+        with:
+          SSH_PRIVATE_KEY: ${{ secrets.SERVER_SSH_KEY }} # ssh 密钥对中的私钥
+          REMOTE_HOST: ${{ env.REMOTE_HOST  }} # 服务器主机 ip
+          REMOTE_USER: ${{ env.REMOTE_USER }} # 服务器用户名
+          SOURCE: '${{ env.PROJECT_DIR }}' # 要进行上传的文件目录
+          TARGET: ${{ env.TARGET_DIR }} # 要进行部署的生产环境目录
+          ARGS: '-rltgoDzvO'
+          SCRIPT_BEFORE: |
+            cd ${{ env.TARGET_DIR }}
+            chattr -i ${{ env.PROJECT_DIR }}/.user.ini
+            chmod -R 777 ${{ env.PROJECT_DIR }}/
+            rm -rf ${{ env.PROJECT_DIR }}
